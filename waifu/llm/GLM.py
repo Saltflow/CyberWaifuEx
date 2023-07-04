@@ -1,38 +1,37 @@
 from waifu.llm.Brain import Brain
 from waifu.llm.VectorDB import VectorDB
-from waifu.llm.SentenceTransformer import STEmbedding
 from langchain.chat_models import ChatOpenAI
-from langchain.embeddings import OpenAIEmbeddings
 from typing import Any, List, Mapping, Optional
 from langchain.schema import BaseMessage
 import openai
+from langchain.vectorstores import FAISS
+from langchain.embeddings import HuggingFaceEmbeddings
 
-class GPT(Brain):
+
+class GLM(Brain):
     def __init__(self, api_key: str,
                  name: str,
                  stream: bool=False,
                  callback=None,
                  model: str='gpt-3.5-turbo',
                  proxy: str=''):
-        self.llm = ChatOpenAI(openai_api_key=api_key,
-                        model_name=model,
-                        streaming=stream,
-                        callbacks=[callback],
-                        temperature=0.85)
-        self.llm_nonstream = ChatOpenAI(openai_api_key=api_key, model_name=model)
-        self.embedding = OpenAIEmbeddings(openai_api_key=api_key)
+        self.llm = CustomLLM(tokenizer=1, model=1, history=[])
+        # self.llm_nonstream = ChatOpenAI(openai_api_key=api_key, model_name=model)
+        self.llm.setModel()
+        # self.embedding = OpenAIEmbeddings(openai_api_key=api_key)
+
+        self.embedding = HuggingFaceEmbeddings()
         # self.embedding = STEmbedding()
         self.vectordb = VectorDB(self.embedding, f'./memory/{name}.csv')
-        if proxy != '':
-            openai.proxy = proxy
+
 
 
     def think(self, messages: List[BaseMessage]):
-        return self.llm(messages).content
+        return self.llm(messages)[0]
 
 
     def think_nonstream(self, messages: List[BaseMessage]):
-        return self.llm_nonstream(messages).content
+        return self.llm(messages)[0]
 
 
     def store_memory(self, text: str | list):
@@ -44,7 +43,6 @@ class GPT(Brain):
         '''提取 top_n 条相关记忆'''
         return self.vectordb.query(text, top_n)
     
-from langchain.callbacks import CallbackManager
 from langchain.llms.base import LLM
 from transformers import AutoTokenizer, AutoModel
 from typing import Any, List, Mapping, Optional
@@ -56,9 +54,9 @@ class CustomLLM(LLM):
     history: list
 
     def setModel(self):
-      tokenizer = AutoTokenizer.from_pretrained("THUDM/chatglm-6b", trust_remote_code=True)
+      tokenizer = AutoTokenizer.from_pretrained("THUDM/chatglm2-6b", trust_remote_code=True)
       self.tokenizer = tokenizer
-      model = AutoModel.from_pretrained("THUDM/chatglm-6b", trust_remote_code=True).half().cuda()
+      model = AutoModel.from_pretrained("THUDM/chatglm2-6b", trust_remote_code=True).half().cuda()
       model = model.quantize(8)
       self.model = model
       self.history = []
@@ -71,15 +69,18 @@ class CustomLLM(LLM):
         self,
         prompt: str,
         stop: Optional[List[str]] = None,
-        run_manager: Optional[CallbackManager] = None,
     ) -> str:
         if stop is not None:
             raise ValueError("stop kwargs are not permitted.")
-        if(len(prompt) >= 2048):
-            prompt = prompt[len(prompt) - 2048:]
-        response, __ = self.model.chat(self.tokenizer, prompt, top_p=0.3, history=self.history)
+        response, history = self.model.chat(self.tokenizer, prompt, top_p=0.3, history=self.history)
         print(response)
+        self.history = history
         return response
+    
+    def _flow_call(
+            self, prompt
+    ):
+        response, _ = self.model.flow_chat(self.tokenizer, prompt, top_p=0.3, history=self.history)
     
     @property
     def _identifying_params(self) -> Mapping[str, Any]:
