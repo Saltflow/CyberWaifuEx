@@ -22,7 +22,9 @@ class Waifu():
                  use_emotion: bool = False,
                  use_emoji: bool = True,
                  use_qqface: bool = False,
-                 use_emoticon: bool = True):
+                 use_emoticon: bool = True,
+                 max_ctx_length = 2048,
+                 max_single_length = 2048):
         self.brain = brain
         self.name = name
         self.username = username
@@ -36,6 +38,8 @@ class Waifu():
         self.use_search = use_search
         self.use_qqface = use_qqface
         self.use_emotion = use_emotion
+        self.max_single_length = max_single_length
+        self.max_context_length =max_ctx_length
         if use_emoji:
             self.emoji = waifu.Thoughts.AddEmoji(self.brain)
         if use_emoticon:
@@ -56,16 +60,16 @@ class Waifu():
             return ''
         message = make_message(text)
         # 第一次检查用户输入文本是否过长
-        if self.brain.llm.get_num_tokens_from_messages([message]) >= 256:
+        if self.brain.llm.get_num_tokens_from_messages([message]) >= self.max_single_length:
             raise ValueError('The text is too long!')
         # 第二次检查 历史记录+用户文本 是否过长
         logging.debug(f'历史记录长度: {self.brain.llm.get_num_tokens_from_messages([message]) + self.brain.llm.get_num_tokens_from_messages(self.chat_memory.messages)}')
         if self.brain.llm.get_num_tokens_from_messages([message])\
-                + self.brain.llm.get_num_tokens_from_messages(self.chat_memory.messages)>= 1536:
+                + self.brain.llm.get_num_tokens_from_messages(self.chat_memory.messages)>= self.max_context_length:
             self.summarize_memory()
         # 第三次检查，如果仍然过长，暴力裁切记忆
         while self.brain.llm.get_num_tokens_from_messages([message])\
-                + self.brain.llm.get_num_tokens_from_messages(self.chat_memory.messages)>= 1536:
+                + self.brain.llm.get_num_tokens_from_messages(self.chat_memory.messages)>= self.max_context_length:
             self.cut_memory()
 
         messages = [self.charactor_prompt]
