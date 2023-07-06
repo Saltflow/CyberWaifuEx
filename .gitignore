@@ -10,6 +10,7 @@ test.py
 output.wav
 ffmpeg
 chatgpt
+output
 
 # 模型文件
 *.pth
