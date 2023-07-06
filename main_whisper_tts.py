@@ -8,6 +8,7 @@ from tts.edge.edge import speak
 from qqbot.qqbot import make_qq_bot
 from waifu.Tools import load_prompt, load_emoticon, load_memory, str2bool
 import configparser
+from time import sleep
 
 config = configparser.ConfigParser()
 
@@ -78,8 +79,9 @@ if filename != '':
 
 
 from langchainex.stream_whisper import StreamWhisper
-from apscheduler.schedulers.background import BackgroundScheduler
+# from apscheduler.schedulers.background import BackgroundScheduler
 import subprocess
+import threading
 i_whisper = StreamWhisper(non_english=True)
 AudioCount = 0
 
@@ -91,26 +93,30 @@ def check_answer():
     global i_whisper
     global waifu
     global AudioCount
-    if(i_whisper.QueryLen() <= 0):
-        return
-    text = i_whisper.getQuery()
-    response = waifu.ask(text)
-    print(text)
-    print(response)
-    with open("./output/output.txt", "w", encoding="utf-8") as f:
-        f.write(f"{response}")  # 将要读的回复写入临时文件
-    subprocess.run(f'edge-tts --voice zh-CN-XiaoyiNeural --f .\output\output.txt --write-media .\output\output{AudioCount}.mp3', shell=True)  # 执行命令行指令
-    subprocess.run(f'mpv.exe -vo null .\output\output{AudioCount}.mp3 1>nul', shell=True)  # 执行命令行指令
-    AudioCount += 1
+    while True:
+        if(i_whisper.QueryLen() <= 0):
+            sleep(0.25)
+            continue
+        text = i_whisper.getQuery()
+        print(text)
+        response = waifu.ask(text)
+        print(response)
+        with open("./output/output.txt", "w", encoding="utf-8") as f:
+            f.write(f"{response}")  # 将要读的回复写入临时文件
+        subprocess.run(f'edge-tts --voice zh-CN-XiaoyiNeural --f .\output\output.txt --write-media .\output\output{AudioCount}.mp3', shell=True)  # 执行命令行指令
+        subprocess.run(f'mpv.exe -vo null .\output\output{AudioCount}.mp3 1>nul', shell=True)  # 执行命令行指令
+        AudioCount += 1
 
 
 
 
 if __name__ == "__main__":
-    sched1 = BackgroundScheduler(timezone="Asia/Shanghai")
+    # sched1 = BackgroundScheduler(timezone="Asia/Shanghai")
 
-    sched1.add_job(check_answer, 'interval', seconds=1, id=f'answer', max_instances=4)
-    sched1.start()
+    # sched1.add_job(check_answer, 'interval', seconds=1, id=f'answer', max_instances=1)
+    # sched1.start()
+    thread = threading.Thread(target=check_answer, name="check_answers")
+    thread.start()
     i_whisper.listen_mic()
 
 # if model == 'OpenAI':
