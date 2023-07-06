@@ -13,11 +13,12 @@ class GLM(Brain):
                  name: str,
                  stream: bool=False,
                  callback=None,
-                 model: str='gpt-3.5-turbo',
+                 model: str="THUDM/chatglm2-6b-int4",
+                 is_cuda = False,
                  proxy: str=''):
         self.llm = CustomLLM(tokenizer=1, model=1, history=[])
         # self.llm_nonstream = ChatOpenAI(openai_api_key=api_key, model_name=model)
-        self.llm.setModel()
+        self.llm.setModel(model, is_cuda)
         # self.embedding = OpenAIEmbeddings(openai_api_key=api_key)
 
         self.embedding = HuggingFaceEmbeddings()
@@ -27,11 +28,11 @@ class GLM(Brain):
 
 
     def think(self, messages: List[BaseMessage]):
-        return self.llm(messages)[0]
+        return self.llm(messages)
 
 
     def think_nonstream(self, messages: List[BaseMessage]):
-        return self.llm(messages)[0]
+        return self.llm(messages)
 
 
     def store_memory(self, text: str | list):
@@ -53,13 +54,18 @@ class CustomLLM(LLM):
     model: int
     history: list
 
-    def setModel(self):
-      tokenizer = AutoTokenizer.from_pretrained("THUDM/chatglm2-6b-int4", trust_remote_code=True)
+    def setModel(self, model, is_cuda):
+      tokenizer = AutoTokenizer.from_pretrained(model, trust_remote_code=True)
     #   tokenizer = AutoTokenizer.from_pretrained("GLMM", trust_remote_code=True)
       self.tokenizer = tokenizer
-      model = AutoModel.from_pretrained("THUDM/chatglm2-6b-int4", trust_remote_code=True).float()
+      # model = AutoModel.from_pretrained(model, trust_remote_code=True).float()
+      if(is_cuda):
+          model = AutoModel.from_pretrained(model, trust_remote_code=True).half().cuda()
+          model = model.quantize(8)
+      else:
+          model = AutoModel.from_pretrained(model, trust_remote_code=True).float()
     #   model = AutoModel.from_pretrained("GLMM", trust_remote_code=True).half()
-    #   model = model.quantize(4)
+    #   
       self.model = model
       self.history = []
         
@@ -74,7 +80,13 @@ class CustomLLM(LLM):
     ) -> str:
         if stop is not None:
             raise ValueError("stop kwargs are not permitted.")
-        response, history = self.model.chat(self.tokenizer, prompt, top_p=0.3, history=self.history)
+        if(len(self.history) == 0):
+          content = ''.join(list(map(lambda x: x.content, prompt)))
+
+          response, history = self.model.chat(self.tokenizer, content, top_p=0.3)
+        else:
+          content = prompt[-1].content
+          response, history = self.model.chat(self.tokenizer, content, top_p=0.3, history=self.history)
         print(response)
         self.history = history
         return response

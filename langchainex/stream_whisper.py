@@ -20,7 +20,7 @@ import threading
 class StreamWhisper():
 
     def __init__(self, model="medium", non_english=False, energy_threshold=1000,
-                record_timeout=2, phrase_timeout=3) -> None:
+                record_timeout=2, phrase_timeout=3, is_cuda=False) -> None:
 
       # Thread safe Queue for passing data from the threaded recording callback.
       self.data_queue = Queue()
@@ -36,6 +36,8 @@ class StreamWhisper():
       if model != "large" and not non_english:
           model = model + ".en"
       self.audio_model = whisper.load_model(model)
+      if(is_cuda):
+          self.audio_model = self.audio_model.cuda()
 
       self.record_timeout = record_timeout
       self.phrase_timeout = phrase_timeout

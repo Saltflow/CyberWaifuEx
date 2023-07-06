@@ -57,7 +57,7 @@ elif model == 'Claude':
 	brain = Claude(bot_id, user_oauth_token, name)
 elif model == 'GLM':
 	callback = None
-	brain = GLM('x', 'x', False)
+	brain = GLM('x', 'x', False, model="THUDM/chatglm2-6b", is_cuda=True)
 
 waifu = Waifu(brain=brain,
 				prompt=prompt,
@@ -76,7 +76,10 @@ if filename != '':
 	memory = load_memory(filename, waifu.name)
 	waifu.import_memory_dataset(memory)
 
-
+while True:
+	print("Debuged!")
+	text = input()
+	print(waifu.ask(text=text))
 
 # if model == 'OpenAI':
 # 	callback.register(waifu)

@@ -58,7 +58,7 @@ elif model == 'Claude':
 	brain = Claude(bot_id, user_oauth_token, name)
 elif model == 'GLM':
 	callback = None
-	brain = GLM('x', 'x', False)
+	brain = GLM('x', 'x', False, model="THUDM/chatglm2-6b", is_cuda=True)
 
 waifu = Waifu(brain=brain,
 				prompt=prompt,
@@ -82,7 +82,7 @@ from langchainex.stream_whisper import StreamWhisper
 # from apscheduler.schedulers.background import BackgroundScheduler
 import subprocess
 import threading
-i_whisper = StreamWhisper(non_english=True)
+i_whisper = StreamWhisper(non_english=True, is_cuda=True)
 AudioCount = 0
 
 def check_answer():
