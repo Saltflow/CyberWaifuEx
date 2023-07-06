@@ -77,6 +77,8 @@ if filename != '':
 	waifu.import_memory_dataset(memory)
 
 
-if model == 'OpenAI':
-	callback.register(waifu)
-make_qq_bot(callback, waifu, send_text, send_voice, tts)
+
+# if model == 'OpenAI':
+# 	callback.register(waifu)
+# print(waifu.ask("How do you do?"))
+# make_qq_bot(callback, waifu, send_text, send_voice, tts)

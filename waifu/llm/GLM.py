@@ -54,10 +54,12 @@ class CustomLLM(LLM):
     history: list
 
     def setModel(self):
-      tokenizer = AutoTokenizer.from_pretrained("THUDM/chatglm2-6b", trust_remote_code=True)
+      tokenizer = AutoTokenizer.from_pretrained("THUDM/chatglm2-6b-int4", trust_remote_code=True)
+    #   tokenizer = AutoTokenizer.from_pretrained("GLMM", trust_remote_code=True)
       self.tokenizer = tokenizer
-      model = AutoModel.from_pretrained("THUDM/chatglm2-6b", trust_remote_code=True).half().cuda()
-      model = model.quantize(8)
+      model = AutoModel.from_pretrained("THUDM/chatglm2-6b-int4", trust_remote_code=True).float()
+    #   model = AutoModel.from_pretrained("GLMM", trust_remote_code=True).half()
+    #   model = model.quantize(4)
       self.model = model
       self.history = []
         

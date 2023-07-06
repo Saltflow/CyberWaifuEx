@@ -9,11 +9,14 @@ import whisper
 import torch
 
 from datetime import datetime, timedelta
+# from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.schedulers.blocking import BlockingScheduler
+from apscheduler.schedulers.background import BackgroundScheduler
 from queue import Queue
 from tempfile import NamedTemporaryFile
 from time import sleep
 from sys import platform
-
+import threading
 class StreamWhisper():
 
     def __init__(self, model="medium", non_english=False, energy_threshold=1000,
@@ -38,9 +41,11 @@ class StreamWhisper():
       self.phrase_timeout = phrase_timeout
 
       self.temp_file = NamedTemporaryFile().name
-      self.transcription = ['']
-      
-      self.recorder.adjust_for_ambient_noise(self.source)
+      self.transcription = [('', datetime.utcnow())]
+      self.Query = Queue(10)
+    
+      with self.source:
+        self.recorder.adjust_for_ambient_noise(self.source)
 
       def record_callback(_, audio:sr.AudioData) -> None:
         """
@@ -53,14 +58,15 @@ class StreamWhisper():
 
     # Create a background thread that will pass us raw audio bytes.
       # We could do this manually but SpeechRecognizer provides a nice helper.
-      self.recorder.listen_in_background(source, record_callback, phrase_time_limit=record_timeout)
+      self.recorder.listen_in_background(self.source, record_callback, phrase_time_limit=record_timeout)
 
 
-    def getData(self):
+    def listen_mic(self):
       # Cue the user that we're ready to go.
       print("Model loaded.\n")
       # The last time a recording was retreived from the queue.
       phrase_time = None
+      last_updated = datetime.utcnow()
       last_sample = bytes()
       while True:
           try:
@@ -93,29 +99,71 @@ class StreamWhisper():
                   result = self.audio_model.transcribe(self.temp_file, fp16=torch.cuda.is_available())
                   text = result['text'].strip()
 
-                  # If we detected a pause between recordings, add a new item to our transcripion.
+                  # If we detected a pause between recordings, add a new item to our transcripion
                   # Otherwise edit the existing one.
                   if phrase_complete:
-                      self.transcription.append(text)
+                      self.Query.put(self.transcription[-1][0])
+                      self.transcription.append((text, datetime.utcnow()))
+                      
                   else:
-                      self.transcription[-1] = text
+                      last_updated = datetime.utcnow()
+                      self.transcription[-1] = (text, last_updated)
 
-                  # Clear the console to reprint the updated transcription.
-                  os.system('cls' if os.name=='nt' else 'clear')
-                  for line in self.transcription:
-                      print(line)
+                #   # Clear the console to reprint the updated transcription.
+                # #   os.system('cls' if os.name=='nt' else 'clear')
+                #   for line in self.transcription:
+                #       print('Recieved:' + line)
+                  
+                #   yield line
                   # Flush stdout.
-                  print('', end='', flush=True)
+                #   print('', end='', flush=True)
+
 
                   # Infinite loops are bad for processors, must sleep.
-                  sleep(0.25)
+              sleep(0.25)
+              # Flush the latest by time interval
+              if(self.transcription[-1][1] - now > timedelta(seconds=self.phrase_timeout)):
+                # There is texts
+                if(len(self.transcription[-1]) > 0):
+                    self.Query.put(self.transcription[-1][0])
+                    # append a virtual transcription text to flush out
+                    self.transcription.append(('', datetime.utcnow()))
+                    
+
           except KeyboardInterrupt:
               break
 
-      print("\n\nTranscription:")
-      for line in self.transcription:
-          print(line)
+    #   print("\n\nTranscription:")
+    #   for line in self.transcription:
+    #       print(line)
+    def getQuery(self):
+        return self.Query.get()
+
+    def QueryLen(self):
+        return self.Query.qsize()
+
+
 
 if __name__ == "__main__":
-    i_whisper = StreamWhisper()
-    i_whisper.getData()
+    sched1 = BackgroundScheduler(timezone="Asia/Shanghai")
+
+    i_whisper = StreamWhisper(non_english=False)
+
+    def check_answer():
+        """
+        如果AI没有在生成回复且队列中还有问题 则创建一个生成的线程
+        :return:
+        """
+        global i_whisper
+        if(i_whisper.QueryLen() <= 0):
+            return
+        text = i_whisper.getQuery()
+        print(text)
+
+    sched1.add_job(check_answer, 'interval', seconds=1, id=f'answer', max_instances=4)
+    sched1.start()
+    i_whisper.listen_mic()
+    # while True:
+    #     sleep(0.25)
+
+    # print(line)
